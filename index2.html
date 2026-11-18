@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clipboard</title>
+  <style>
+    :root {
+      --bg-canvas: #f6f8fa;
+      --bg-header: #ffffff;
+      --bg-overlay: #ffffff;
+      --bg-subtle: #f6f8fa;
+      --bg-hover: #f3f4f6;
+      --border-default: #d0d7de;
+      --border-muted: #d8dee4;
+      --fg-default: #1f2328;
+      --fg-muted: #656d76;
+      --accent-fg: #0969da;
+      --btn-primary-bg: #1f883d;
+      --btn-primary-hover: #1a7f37;
+      --btn-primary-text: #ffffff;
+      --btn-secondary-bg: #f6f8fa;
+      --btn-secondary-hover: #f3f4f6;
+      --btn-secondary-border: rgba(31, 35, 40, 0.15);
+      --danger-fg: #cf222e;
+      --danger-hover-bg: #ffebe9;
+      --clip-badge-bg: #ddf4ff;
+      --clip-badge-fg: #0969da;
+      --shadow-overlay: 0 8px 24px rgba(140, 149, 159, 0.2);
+    }
+
+    [data-theme="dark"] {
+      --bg-canvas: #0d1117;
+      --bg-header: #161b22;
+      --bg-overlay: #161b22;
+      --bg-subtle: #161b22;
+      --bg-hover: #21262d;
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --fg-default: #e6edf3;
+      --fg-muted: #848d97;
+      --accent-fg: #4493f8;
+      --btn-primary-bg: #238636;
+      --btn-primary-hover: #2ea043;
+      --btn-primary-text: #ffffff;
+      --btn-secondary-bg: #21262d;
+      --btn-secondary-hover: #30363d;
+      --btn-secondary-border: #30363d;
+      --danger-fg: #f85149;
+      --danger-hover-bg: rgba(248, 81, 73, 0.15);
+      --clip-badge-bg: rgba(56, 139, 253, 0.15);
+      --clip-badge-fg: #4493f8;
+      --shadow-overlay: 0 8px 24px #010409;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--fg-default);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* GitHub-style Top Navigation Bar */
+    .gh-header {
+      background-color: var(--bg-header);
+      border-bottom: 1px solid var(--border-default);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .gh-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--fg-default);
+    }
+
+    .gh-brand svg {
+      fill: var(--fg-default);
+    }
+
+    .gh-header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Main Container */
+    .gh-container {
+      max-width: 1012px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    /* Action & Filter Toolbar */
+    .gh-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .gh-input, .gh-select {
+      background-color: var(--bg-canvas);
+      color: var(--fg-default);
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 14px;
+      line-height: 20px;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .gh-input:focus, .gh-select:focus {
+      border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.2);
+    }
+
+    #search-input {
+      flex: 1;
+      min-width: 220px;
+    }
+
+    /* Rich Editor (ContentEditable) */
+    .gh-rich-editor {
+      background-color: var(--bg-canvas);
+      color: var(--fg-default);
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 62px;
+      max-height: 240px;
+      overflow-y: auto;
+      outline: none;
+      word-break: break-word;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .gh-rich-editor:focus {
+      border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.2);
+    }
+
+    .gh-rich-editor:empty::before {
+      content: attr(data-placeholder);
+      color: var(--fg-muted);
+      pointer-events: none;
+      display: block;
+    }
+
+    .gh-rich-editor img {
+      max-width: 100%;
+      max-height: 160px;
+      border-radius: 4px;
+      margin-top: 4px;
+      display: block;
+    }
+
+    /* Buttons */
+    .gh-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 5px 12px;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid var(--btn-secondary-border);
+      background-color: var(--btn-secondary-bg);
+      color: var(--fg-default);
+      user-select: none;
+      white-space: nowrap;
+      transition: background-color 0.15s ease;
+    }
+
+    .gh-btn:hover {
+      background-color: var(--btn-secondary-hover);
+    }
+
+    .gh-btn-primary {
+      background-color: var(--btn-primary-bg);
+      color: var(--btn-primary-text);
+      border-color: rgba(31, 35, 40, 0.15);
+    }
+
+    .gh-btn-primary:hover {
+      background-color: var(--btn-primary-hover);
+    }
+
+    .gh-btn-icon {
+      padding: 5px 9px;
+      font-size: 16px;
+      line-height: 20px;
+    }
+
+    .gh-btn-sm {
+      padding: 2px 8px;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .gh-btn-danger {
+      color: var(--danger-fg);
+      background: transparent;
+      border: 1px solid transparent;
+      padding: 2px 8px;
+      font-size: 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .gh-btn-danger:hover {
+      background-color: var(--danger-hover-bg);
+      border-color: var(--danger-fg);
+    }
+
+    /* GitHub Repository Box for Groups */
+    .gh-box {
+      background-color: var(--bg-overlay);
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .gh-box-header {
+      background-color: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .gh-counter {
+      background-color: var(--bg-hover);
+      color: var(--fg-muted);
+      border-radius: 2em;
+      padding: 0 7px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border-muted);
+    }
+
+    .gh-box-row {
+      padding: 10px 16px 8px 16px;
+      border-bottom: 1px solid var(--border-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: background-color 0.1s ease;
+      cursor: default;
+    }
+
+    .gh-box-row:last-child {
+      border-bottom: none;
+    }
+
+    .gh-box-row:hover {
+      background-color: var(--bg-hover);
+    }
+
+    .gh-row-main {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .gh-title-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .gh-bookmark-link {
+      color: var(--accent-fg);
+      font-weight: 600;
+      text-decoration: none;
+      word-break: break-word;
+    }
+
+    .gh-bookmark-link:hover {
+      text-decoration: underline;
+    }
+
+    .gh-clip-content {
+      color: var(--fg-default);
+      font-weight: 400;
+      word-break: break-word;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Scrollbar for clips larger than 300 characters */
+    .gh-clip-scrollable {
+      max-height: 1080px;
+      overflow-y: auto;
+      padding-right: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-default) transparent;
+    }
+
+    .gh-clip-scrollable::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .gh-clip-scrollable::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .gh-clip-scrollable::-webkit-scrollbar-thumb {
+      background-color: var(--border-default);
+      border-radius: 3px;
+    }
+
+    .gh-clip-scrollable::-webkit-scrollbar-thumb:hover {
+      background-color: var(--fg-muted);
+    }
+
+    .gh-clip-content img {
+      max-width: 100%;
+      max-height: 240px;
+      border-radius: 6px;
+      margin-top: 6px;
+      border: 1px solid var(--border-default);
+      display: block;
+    }
+
+    .gh-clip-content pre, .gh-clip-content code {
+      background-color: var(--bg-subtle);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .gh-clip-badge {
+      background-color: var(--clip-badge-bg);
+      color: var(--clip-badge-fg);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 2em;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .gh-bookmark-url {
+      color: var(--fg-muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+      display: none;;
+    }
+
+    /* Bottom Footer: Visible on Hover */
+    .gh-row-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 4px;
+      border-top: 1px dashed var(--border-muted);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.15s ease, visibility 0.15s ease;
+    }
+
+    .gh-box-row:hover .gh-row-footer,
+    .gh-box-row:focus-within .gh-row-footer {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .gh-row-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .gh-timestamp {
+      color: var(--fg-muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    /* Blankslate Empty State */
+    .gh-blankslate {
+      background-color: var(--bg-overlay);
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--fg-muted);
+    }
+
+    .gh-blankslate h3 {
+      color: var(--fg-default);
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    /* Native HTML Dialog Modal */
+    dialog.gh-dialog {
+      background-color: var(--bg-overlay);
+      color: var(--fg-default);
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      box-shadow: var(--shadow-overlay);
+      width: 100%;
+      max-width: 520px;
+      margin: auto;
+      padding: 0;
+    }
+
+    dialog.gh-dialog::backdrop {
+      background-color: rgba(1, 4, 9, 0.6);
+    }
+
+    .gh-dialog-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .gh-dialog-close {
+      background: transparent;
+      border: none;
+      color: var(--fg-muted);
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+    }
+
+    .gh-dialog-close:hover {
+      color: var(--fg-default);
+    }
+
+    .gh-dialog-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .gh-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .gh-form-group label {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .gh-form-hint {
+      font-weight: 400;
+      color: var(--fg-muted);
+      font-size: 12px;
+    }
+
+    .gh-dialog-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border-default);
+      background-color: var(--bg-subtle);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* Toast Notification */
+    .gh-toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: var(--fg-default);
+      color: var(--bg-canvas);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--shadow-overlay);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 200;
+    }
+
+    .gh-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 640px) {
+      .gh-header {
+        padding: 12px 16px;
+      }
+      .gh-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="gh-header">
+    <div class="gh-brand">
+      <svg height="24" viewBox="0 0 16 16" width="24" aria-hidden="true">
+        <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"></path>
+      </svg>
+      <span>Clipboard</span>
+    </div>
+
+    <div class="gh-header-right">
+      <button id="export-btn" class="gh-btn" title="Export bookmarks as .bmark">Export
+      </button>
+      <label for="import-file" class="gh-btn" title="Import bookmarks from .bmark">Import</label>
+      <input type="file" id="import-file" accept=".bmark,application/json" hidden>
+      <button id="theme-toggle" class="gh-btn gh-btn-icon" title="Toggle Dark/Light Mode" aria-label="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="gh-container">
+    <!-- Toolbar: Search | Add Button | Group Dropdown -->
+    <div class="gh-toolbar">
+      <input type="text" id="search-input" class="gh-input" placeholder="Find a bookmark or clip...">
+      <button id="open-dialog-btn" class="gh-btn gh-btn-primary">New</button>
+      <select id="group-filter" class="gh-select">
+        <option value="ALL">Group: All</option>
+      </select>
+    </div>
+
+    <!-- Grouped Bookmark Containers -->
+    <div id="bookmarks-container"></div>
+  </main>
+
+  <!-- Add / Edit Bookmark Dialog Box -->
+  <dialog id="bookmark-dialog" class="gh-dialog">
+    <form id="bookmark-form">
+      <div class="gh-dialog-header">
+        <span id="dialog-title">Add bookmark or clip</span>
+        <button type="button" id="close-dialog-btn" class="gh-dialog-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="gh-dialog-body">
+        <div class="gh-form-group">
+          <label for="bm-text-editor">Text <span class="gh-form-hint">(supports rich formatting & pasted images; defaults to URL if empty)</span></label>
+          <div id="bm-text-editor" class="gh-rich-editor" contenteditable="true" data-placeholder="Paste text, formatted snippet, image, or leave empty to use URL"></div>
+        </div>
+        <div class="gh-form-group" style="display:none">
+          <label for="bm-url">URL <span class="gh-form-hint">(optional — leave blank to save as clipboard clip)</span></label style="display:none">
+          <input type="url" id="bm-url" class="gh-input" placeholder="https://github.com">
+        </div>
+        <div class="gh-form-group">
+          <label for="bm-group">Group</label>
+          <input type="text" id="bm-group" class="gh-input" placeholder="Uncategorized" list="group-suggestions">
+          <datalist id="group-suggestions"></datalist>
+        </div>
+      </div>
+      <div class="gh-dialog-footer">
+        <button type="button" id="cancel-dialog-btn" class="gh-btn">Cancel</button>
+        <button type="submit" id="save-dialog-btn" class="gh-btn gh-btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="gh-toast"></div>
+
+  <script>
+    const DB_NAME = 'BookmarksAppDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'bookmarks';
+    const STORAGE_KEY = 'bookmarks_data';
+    const THEME_KEY = 'gh_bookmark_theme';
+    const GROUP_FILTER_KEY = 'gh_bookmark_selected_group';
+    const LAST_GROUP_KEY = 'gh_bookmark_last_group';
+    const CLIP_SCROLL_CHAR_LIMIT = 500;
+
+    let bookmarks = [];
+    let db = null;
+    let editingId = null;
+    let toastTimer = null;
+
+    // DOM References
+    const themeToggle = document.getElementById('theme-toggle');
+    const searchInput = document.getElementById('search-input');
+    const groupFilter = document.getElementById('group-filter');
+    const openDialogBtn = document.getElementById('open-dialog-btn');
+    const closeDialogBtn = document.getElementById('close-dialog-btn');
+    const cancelDialogBtn = document.getElementById('cancel-dialog-btn');
+    const dialog = document.getElementById('bookmark-dialog');
+    const dialogTitle = document.getElementById('dialog-title');
+    const saveDialogBtn = document.getElementById('save-dialog-btn');
+    const form = document.getElementById('bookmark-form');
+    const textEditor = document.getElementById('bm-text-editor');
+    const urlInput = document.getElementById('bm-url');
+    const groupInput = document.getElementById('bm-group');
+    const groupSuggestions = document.getElementById('group-suggestions');
+    const container = document.getElementById('bookmarks-container');
+    const exportBtn = document.getElementById('export-btn');
+    const importInput = document.getElementById('import-file');
+    const toastEl = document.getElementById('toast');
+
+    const isChromeStorageAvailable = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
+
+    // Toast Helper
+    function showToast(message) {
+      toastEl.textContent = message;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toastEl.classList.remove('show');
+      }, 2200);
+    }
+
+    // Theme Management (Temporary setting in localStorage)
+    function initTheme() {
+      const savedTheme = localStorage.getItem(THEME_KEY) || 'light';
+      applyTheme(savedTheme);
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem(THEME_KEY, theme);
+      themeToggle.textContent = theme === 'dark' ? '🔆' : '🌙';
+      themeToggle.title = theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
+    // IndexedDB Initialization (Primary Data Storage)
+    function initDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = (event) => {
+          const database = event.target.result;
+          if (!database.objectStoreNames.contains(STORE_NAME)) {
+            database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+        };
+
+        request.onsuccess = (event) => {
+          db = event.target.result;
+          resolve(db);
+        };
+
+        request.onerror = (event) => {
+          console.error('IndexedDB error:', event.target.error);
+          reject(event.target.error);
+        };
+      });
+    }
+
+    function getAllFromDB() {
+      return new Promise((resolve, reject) => {
+        if (!db) return resolve([]);
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function syncAllToDB(items) {
+      return new Promise((resolve, reject) => {
+        if (!db) return resolve();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.clear();
+        items.forEach((item) => store.put(item));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    // Load Data from IndexedDB (with Chrome Storage sync if available)
+    async function loadBookmarks() {
+      try {
+        await initDB();
+        const dbItems = await getAllFromDB();
+
+        if (dbItems.length > 0) {
+          bookmarks = dbItems;
+          updateUI();
+        } else if (isChromeStorageAvailable) {
+          chrome.storage.local.get([STORAGE_KEY], async (result) => {
+            bookmarks = result[STORAGE_KEY] || [];
+            if (bookmarks.length > 0) {
+              await syncAllToDB(bookmarks);
+            }
+            updateUI();
+          });
+        } else {
+          bookmarks = [];
+          updateUI();
+        }
+      } catch (err) {
+        console.error('Storage initialization failed:', err);
+        bookmarks = [];
+        updateUI();
+      }
+    }
+
+    // Save Data to IndexedDB (and Chrome Storage if running as extension)
+    async function saveBookmarks(callback) {
+      try {
+        await syncAllToDB(bookmarks);
+      } catch (e) {
+        console.error('Failed saving to IndexedDB:', e);
+      }
+
+      if (isChromeStorageAvailable) {
+        chrome.storage.local.set({ [STORAGE_KEY]: bookmarks }, () => {
+          if (callback) callback();
+        });
+      } else {
+        if (callback) callback();
+      }
+    }
+
+    // Sanitize & Trim Rich HTML Content
+    function cleanRichHTML(rawHtml) {
+      const temp = document.createElement('div');
+      temp.innerHTML = rawHtml;
+
+      temp.querySelectorAll('script, style, meta, link').forEach((el) => el.remove());
+
+      let html = temp.innerHTML.trim();
+      html = html.replace(/^(?:&nbsp;|\s|<br\s*\/?>)+/gi, '');
+      html = html.replace(/(?:&nbsp;|\s|<br\s*\/?>)+$/gi, '');
+      return html.trim();
+    }
+
+    function getPlainTextFromHTML(html) {
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      return (temp.textContent || temp.innerText || '').trim();
+    }
+
+    // Handle Image Paste inside Rich Editor
+    textEditor.addEventListener('paste', (e) => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.indexOf('image') === 0) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = document.createElement('img');
+            img.src = event.target.result;
+            img.alt = 'Pasted clip image';
+
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0 && textEditor.contains(selection.anchorNode)) {
+              const range = selection.getRangeAt(0);
+              range.deleteContents();
+              range.insertNode(img);
+              range.collapse(false);
+            } else {
+              textEditor.appendChild(img);
+            }
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+    });
+
+    // Copy Rich Clip or Text to Clipboard
+    async function copyEntryToClipboard(entry, successMsg = 'Copied to clipboard!') {
+      const plainText = (entry.title || '').trim();
+      const richHtml = entry.htmlContent || '';
+
+      try {
+        if (richHtml && navigator.clipboard && window.ClipboardItem) {
+          const htmlBlob = new Blob([richHtml], { type: 'text/html' });
+          const textBlob = new Blob([plainText || 'Image clip'], { type: 'text/plain' });
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'text/html': htmlBlob,
+              'text/plain': textBlob
+            })
+          ]);
+          showToast(successMsg);
+          return;
+        }
+      } catch (err) {
+        // Fallback to plain text copy if rich copy is blocked
+      }
+
+      const textToCopy = plainText || entry.url || '';
+      if (!textToCopy) return;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy)
+          .then(() => showToast(successMsg))
+          .catch(() => fallbackCopyText(textToCopy, successMsg));
+      } else {
+        fallbackCopyText(textToCopy, successMsg);
+      }
+    }
+
+    function fallbackCopyText(text, successMsg) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        showToast(successMsg);
+      } catch (err) {
+        console.warn('Clipboard copy failed:', err);
+      }
+      document.body.removeChild(textarea);
+    }
+
+    // Dialog Controls (Add & Edit)
+    function openAddDialog() { 
+      editingId = null;
+      dialogTitle.textContent = 'Add bookmark or clip';
+      saveDialogBtn.textContent = 'Save';
+      form.reset();
+      textEditor.innerHTML = '';
+      const lastGroup = localStorage.getItem(LAST_GROUP_KEY) || '';
+      if (lastGroup && lastGroup !== 'Uncategorized') {
+        groupInput.value = lastGroup;
+      }
+      dialog.showModal();
+      textEditor.focus();
+    }
+
+  function parseLinkAndText(input) {
+    // 1. Match any URL starting with http:// or https://
+    const urlRegex = /(https?:\/\/[^\s]+)/i;
+    const match = input.match(urlRegex);
+
+    if (match) {
+      const url = match[0];
+      // 2. Remove the URL from the text and clean up extra spaces
+      const displayText = input.replace(url, "").trim().replace(/\s+/g, " ");
+      
+      return {
+        url: url,
+        displayText: displayText || url // Fallback to the URL if no extra text exists
+      };
+    }
+
+    // If no URL is found, return the whole string as display text
+    return {
+      url: null,
+      displayText: input.trim()
+    };
+  }
+
+    function openEditDialog(bookmark) {
+      editingId = bookmark.id;
+      dialogTitle.textContent = 'Edit bookmark or clip';
+      saveDialogBtn.textContent = 'Update';
+      if (bookmark.htmlContent) {
+        textEditor.innerHTML = bookmark.htmlContent;
+      } else {
+        textEditor.textContent = (bookmark.title || '').trim();
+      }
+      urlInput.value = bookmark.url || '';
+      groupInput.value = bookmark.group === 'Uncategorized' ? '' : (bookmark.group || '');
+      dialog.showModal();
+      textEditor.focus();
+    }
+
+    openDialogBtn.addEventListener('click', openAddDialog);
+
+    function closeDialog() {
+      editingId = null;
+      dialog.close();
+      form.reset();
+      textEditor.innerHTML = '';
+    }
+
+    closeDialogBtn.addEventListener('click', closeDialog);
+    cancelDialogBtn.addEventListener('click', closeDialog);
+
+    dialog.addEventListener('click', (e) => {
+      const rect = dialog.getBoundingClientRect();
+      const isInDialog =
+        rect.top <= e.clientY &&
+        e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX &&
+        e.clientX <= rect.left + rect.width;
+      if (!isInDialog) closeDialog();
+    });
+
+    // Save or Update Bookmark / Clip
+    form.addEventListener('submit', (e) => { debugger
+      e.preventDefault();
+
+      let cleanedHtml = cleanRichHTML(textEditor.innerHTML);
+      let plainTitle = getPlainTextFromHTML(cleanedHtml);
+      let lin_and_text = parseLinkAndText(plainTitle);
+      plainTitle = lin_and_text.displayText.trim() ?? "";
+      const urlVal = lin_and_text?.url?.trim() ?? "";//urlInput.value.trim();
+      const hasImage = /<img/i.test(cleanedHtml);
+
+      if (!plainTitle && !hasImage && urlVal) {
+        plainTitle = urlVal;
+        cleanedHtml = escapeHTML(urlVal);
+      }
+
+      if (!plainTitle && !hasImage && !urlVal) {
+        textEditor.focus();
+        showToast('Please enter text, paste an image, or provide a URL.');
+        return;
+      }
+
+      const isClip = !urlVal;
+      const groupVal = groupInput.value.trim() || 'Uncategorized';
+      localStorage.setItem(LAST_GROUP_KEY, groupVal);
+
+      if (editingId) {
+        const index = bookmarks.findIndex((b) => b.id === editingId);
+        if (index !== -1) {
+          bookmarks[index] = {
+            ...bookmarks[index],
+            title: plainTitle,
+            htmlContent: cleanedHtml,
+            url: urlVal,
+            isClip: isClip,
+            group: groupVal
+          };
+        }
+        saveBookmarks(() => {
+          closeDialog();
+          updateUI();
+          showToast('Updated!');
+        });
+      } else {
+        const newEntry = {
+          id: crypto.randomUUID(),
+          title: plainTitle,
+          htmlContent: cleanedHtml,
+          url: urlVal,
+          isClip: isClip,
+          group: groupVal,
+          timestamp: new Date().toISOString()
+        };
+
+        bookmarks.unshift(newEntry);
+        saveBookmarks(() => {
+          if (isClip) {
+            copyEntryToClipboard(newEntry, 'Clip saved & copied to clipboard!');
+          } else {
+            showToast('Bookmark saved!');
+          }
+          closeDialog();
+          updateUI();
+        });
+      }
+    });
+
+    // Delete Entry
+    function deleteBookmark(id) {
+      bookmarks = bookmarks.filter((b) => b.id !== id);
+      saveBookmarks(() => {
+        updateUI();
+      });
+    }
+
+    // Export as .bmark JSON
+    exportBtn.addEventListener('click', () => {
+      const dataStr = JSON.stringify(bookmarks, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `bookmarks-${dateStamp}.bmark`;
+      document.body.appendChild(a);
+      a.click();
+
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    // Import .bmark JSON into IndexedDB and Reload
+    importInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (!file.name.endsWith('.bmark')) {
+        alert('Please select a valid .bmark file.');
+        importInput.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const importedData = JSON.parse(event.target.result);
+          if (!Array.isArray(importedData)) {
+            throw new Error('Invalid file format.');
+          }
+
+          await syncAllToDB(importedData);
+
+          if (isChromeStorageAvailable) {
+            chrome.storage.local.set({ [STORAGE_KEY]: importedData }, () => {
+              window.location.reload();
+            });
+          } else {
+            window.location.reload();
+          }
+        } catch (err) {
+          alert('Failed to import: Invalid JSON format in .bmark file.');
+        }
+      };
+
+      reader.readAsText(file);
+    });
+
+    // Search & Group Filter Listeners (Group selection persisted in localStorage)
+    searchInput.addEventListener('input', renderBookmarks);
+    groupFilter.addEventListener('change', () => {
+      localStorage.setItem(GROUP_FILTER_KEY, groupFilter.value);
+      renderBookmarks();
+    });
+
+    function updateUI() {
+      populateGroupOptions();
+      renderBookmarks();
+    }
+
+    function populateGroupOptions() {
+      const groups = [...new Set(bookmarks.map((b) => b.group || 'Uncategorized'))].sort();
+      const savedFilter = localStorage.getItem(GROUP_FILTER_KEY) || groupFilter.value || 'ALL';
+
+      groupFilter.innerHTML = '<option value="ALL">Group: All</option>';
+      groups.forEach((group) => {
+        const option = document.createElement('option');
+        option.value = group;
+        option.textContent = `Group: ${group}`;
+        groupFilter.appendChild(option);
+      });
+
+      if (savedFilter === 'ALL' || groups.includes(savedFilter)) {
+        groupFilter.value = savedFilter;
+      } else {
+        groupFilter.value = 'ALL';
+        localStorage.setItem(GROUP_FILTER_KEY, 'ALL');
+      }
+
+      groupSuggestions.innerHTML = '';
+      groups.forEach((group) => {
+        const option = document.createElement('option');
+        option.value = group;
+        groupSuggestions.appendChild(option);
+      });
+    }
+
+    function formatDate(isoString) {
+      if (!isoString) return '';
+      const date = new Date(isoString);
+      return date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // Render Bookmarks & Clips Ordered by Recency
+    function renderBookmarks() {
+      const searchTerm = searchInput.value.toLowerCase().trim();
+      const selectedGroup = groupFilter.value;
+
+      const sortedBookmarks = [...bookmarks].sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      const filtered = sortedBookmarks.filter((b) => {
+        const grp = b.group || 'Uncategorized';
+        const titleText = (b.title || '').toLowerCase();
+        const urlText = (b.url || '').toLowerCase();
+        const matchesGroup = selectedGroup === 'ALL' || grp === selectedGroup;
+        const matchesSearch =
+          titleText.includes(searchTerm) ||
+          urlText.includes(searchTerm) ||
+          grp.toLowerCase().includes(searchTerm);
+        return matchesGroup && matchesSearch;
+      });
+
+      container.innerHTML = '';
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="gh-blankslate">
+            <h3>No bookmarks or clips found</h3>
+            <p>Click <strong>New</strong> to save a bookmark or clipboard clip, or import a <code>.bmark</code> file.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const grouped = filtered.reduce((acc, item) => {
+        const grp = item.group || 'Uncategorized';
+        if (!acc[grp]) {
+          acc[grp] = {
+            items: [],
+            latestTime: 0
+          };
+        }
+        acc[grp].items.push(item);
+        const itemTime = item.timestamp ? new Date(item.timestamp).getTime() : 0;
+        if (itemTime > acc[grp].latestTime) {
+          acc[grp].latestTime = itemTime;
+        }
+        return acc;
+      }, {});
+
+      const sortedGroupNames = Object.keys(grouped).sort((a, b) => {
+        return grouped[b].latestTime - grouped[a].latestTime;
+      });
+
+      sortedGroupNames.forEach((groupName) => {
+        const groupData = grouped[groupName];
+        const box = document.createElement('section');
+        box.className = 'gh-box';
+
+        const header = document.createElement('div');
+        header.className = 'gh-box-header';
+        header.innerHTML = `
+          <span>${escapeHTML(groupName)}</span>
+          <span class="gh-counter">${groupData.items.length}</span>
+        `;
+        box.appendChild(header);
+
+        groupData.items.forEach((b) => {
+          const isClip = b.isClip || !b.url;
+          const cleanTitle = (b.title || '').trim();
+          const isLongClip = isClip && cleanTitle.length > CLIP_SCROLL_CHAR_LIMIT;
+          const row = document.createElement('div');
+          row.className = 'gh-box-row';
+          row.title = 'Double-click to edit';
+
+          const clipDisplayHTML = b.htmlContent ? b.htmlContent : escapeHTML(cleanTitle);
+          const titleHTML = isClip
+            ? `<div class="gh-title-line"><span class="gh-clip-badge">Clip</span><div class="gh-clip-content${isLongClip ? ' gh-clip-scrollable' : ''}">${clipDisplayHTML}</div></div>`
+            : `<div class="gh-title-line"><a href="${escapeHTML(b.url)}" target="_blank" rel="noopener noreferrer" class="gh-bookmark-link">${escapeHTML(cleanTitle || b.url)}</a></div>`;
+
+          const urlHTML = isClip ? '' : `<div class="gh-bookmark-url">${escapeHTML(b.url)}</div>`;
+
+          row.innerHTML = `
+            <div class="gh-row-main">
+              ${titleHTML}
+              ${urlHTML}
+            </div>
+            <div class="gh-row-footer">
+              <span class="gh-timestamp">${formatDate(b.timestamp)}</span>
+              <div class="gh-row-actions">
+                <button class="gh-btn gh-btn-sm copy-btn" data-id="${b.id}">Copy</button>
+                <button class="gh-btn-danger delete-btn" data-id="${b.id}">Delete</button>
+              </div>
+            </div>
+          `;
+
+          row.addEventListener('dblclick', (e) => {
+            if (e.target.closest('button') || e.target.closest('a')) return;
+            openEditDialog(b);
+          });
+
+          row.querySelector('.copy-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            copyEntryToClipboard(b, isClip ? 'Clip copied to clipboard!' : 'Copied to clipboard!');
+          });
+
+          row.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteBookmark(b.id);
+          });
+
+          box.appendChild(row);
+        });
+
+        container.appendChild(box);
+      });
+    }
+
+    function escapeHTML(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Boot Application
+    document.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      loadBookmarks();
+    });
+  </script>
+</body>
+</html>
